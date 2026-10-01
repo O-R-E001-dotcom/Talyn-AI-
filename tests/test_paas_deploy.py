@@ -12,6 +12,7 @@ import httpx
 import pytest
 
 from app import backend_client
+from app import config
 from app.backend_client import BackendError, fetch_learner_context
 
 
@@ -59,6 +60,77 @@ def fake_get(monkeypatch):
     recorder = _Recorder()
     monkeypatch.setattr(backend_client.httpx, "get", recorder)
     return recorder
+
+
+# ── Blank env vars must not silently disable a safety control ────────────────
+
+
+def test_blank_env_var_uses_the_default_not_off():
+    """The bug this file exists to prevent, in its deployed form.
+
+    A PaaS dashboard expresses "leave it at the default" by clearing the
+    field, not by deleting the variable. os.getenv's default only applies to
+    an *unset* variable, so an empty string used to read as False and
+    switched off TALYN_REQUIRE_TOKEN — which is how the coach ended up
+    accepting unauthenticated caller-supplied contexts in production while
+    the Blueprint still said "leave empty for the safe default".
+    """
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setenv("TALYN_REQUIRE_TOKEN", "")
+        assert config._flag("TALYN_REQUIRE_TOKEN", "1") is True
+
+        monkey.setenv("TALYN_MOCK", "")
+        assert config._flag("TALYN_MOCK") is False
+    finally:
+        monkey.undo()
+
+
+def test_explicit_values_still_win_over_the_default():
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setenv("SOME_FLAG", "off")
+        assert config._flag("SOME_FLAG", "1") is False
+        monkey.setenv("SOME_FLAG", "false")
+        assert config._flag("SOME_FLAG", "1") is False
+        monkey.setenv("SOME_FLAG", "0")
+        assert config._flag("SOME_FLAG", "1") is False
+        monkey.setenv("SOME_FLAG", "1")
+        assert config._flag("SOME_FLAG", "0") is True
+        monkey.setenv("SOME_FLAG", "true")
+        assert config._flag("SOME_FLAG", "0") is True
+        monkey.setenv("SOME_FLAG", "yes")
+        assert config._flag("SOME_FLAG", "0") is True
+        monkey.setenv("SOME_FLAG", "on")
+        assert config._flag("SOME_FLAG", "0") is True
+    finally:
+        monkey.undo()
+
+
+def test_unset_env_var_uses_the_default():
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.delenv("TALYN_REQUIRE_TOKEN", raising=False)
+        assert config._flag("TALYN_REQUIRE_TOKEN", "1") is True
+    finally:
+        monkey.undo()
+
+
+def test_blank_or_bad_int_falls_back_instead_of_crashing():
+    """int("") raises at import, which would take the service down because
+    someone cleared a field in a dashboard."""
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setenv("SOME_LIMIT", "")
+        assert config._int("SOME_LIMIT", 30) == 30
+        monkey.setenv("SOME_LIMIT", "not-a-number")
+        assert config._int("SOME_LIMIT", 30) == 30
+        monkey.setenv("SOME_LIMIT", "45")
+        assert config._int("SOME_LIMIT", 30) == 45
+        monkey.setenv("SOME_LIMIT", "0")
+        assert config._int("SOME_LIMIT", 30) == 0
+    finally:
+        monkey.undo()
 
 
 def test_default_timeout_outlasts_a_cold_backend_start():
