@@ -1,0 +1,59 @@
+name: Render
+
+# Render Blueprint for the Talyn AI coach.
+#
+# Dashboard > New > Blueprint > point at THIS repo (Talyn-AI-.git). The coach
+# is its own repository, so it gets its own service and its own URL — the
+# frontend points VITE_COACH_URL at it, and the routes are unchanged
+# (/coach/ask stays /coach/ask), so no path rewriting is involved.
+#
+# Requires the backend to already be deployed: the coach loads learner context
+# from it on every call, using the caller's JWT.
+services:
+  - type: web
+    name: talyn-ai-coach
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      # Anthropic console. Without it the coach would answer with canned
+      # replies, which looks alive and teaches nothing — set it.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Where learner context is loaded from. Use the backend's public URL,
+      # not localhost: these are separate Render services.
+      - key: TALYN_BACKEND_URL
+        sync: false
+      # Leave empty. Any value here switches the coach to canned responses.
+      - key: TALYN_MOCK
+        value: ""
+      # A backend JWT is required on every call unless TALYN_MOCK is set.
+      # Leave empty — it is the safe default, and the safe default should not
+      # need to be typed in.
+      - key: TALYN_REQUIRE_TOKEN
+        value: ""
+      # Browsers allowed to call the coach. Every coach call bills a real API,
+      # so this must be your own origin, not "*".
+      - key: CORS_ORIGINS
+        value: http://localhost:3000
+      # Per-IP budget. 30/min is generous for one learner and low enough that
+      # a loop cannot drain the account.
+      - key: COACH_RATE_LIMIT_PER_MINUTE
+        value: "30"
+      # 30s, not the old 5s: on a free tier the backend sleeps after 15 idle
+      # minutes and needs ~a minute to wake, which a 5s timeout cannot
+      # outlast. The coach 502s whenever it calls a sleeping backend.
+      - key: BACKEND_TIMEOUT_SECONDS
+        value: "30"
+
+# Cold starts are the thing to plan for. The service sleeps after 15 idle
+# minutes; the first request after that takes roughly a minute, and Render
+# shows a loading page to browsers meanwhile. Hit
+# https://<service>.onrender.com/health a few minutes before a demo —
+# warming the coach alone is not enough, because its first backend call has
+# to wake the *backend* too.
+#
+# Kept as comments on purpose: a Blueprint must be a single YAML document, so
+# trailing prose after `---` makes the file invalid.

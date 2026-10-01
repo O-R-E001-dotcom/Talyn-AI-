@@ -20,6 +20,8 @@ Errors surface as BackendError with an HTTP status the routers translate:
 
 from typing import Optional, TypeVar
 
+import os
+
 import httpx
 from pydantic import BaseModel
 
@@ -35,7 +37,18 @@ CONTEXT_PATH = "/v1/me/context"
 PATH_PROFILE_PATH = "/v1/me/path-profile"
 PERSONALIZATION_PROFILE_PATH = "/v1/me/personalization-profile"
 REVISION_PROFILE_PATH = "/v1/me/revision-profile"
-TIMEOUT_SECONDS = 5.0
+
+# Timeout for backend profile fetches.
+#
+# This was 5s, which assumed a local backend answering instantly. On a PaaS
+# with a free tier the backend sleeps after 15 idle minutes and takes roughly
+# a minute to wake — so every coach call made while the backend slept failed
+# with a 502, even though both services were healthy. 30s covers a cold start
+# while still bounding a genuinely dead backend.
+#
+# Backends on the same private network answer in milliseconds, so this only
+# ever waits as long as it actually has to.
+TIMEOUT_SECONDS = float(os.getenv("BACKEND_TIMEOUT_SECONDS", "30"))
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 

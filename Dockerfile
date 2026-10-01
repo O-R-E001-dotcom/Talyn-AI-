@@ -38,10 +38,12 @@ USER app
 
 EXPOSE 8001
 
+# Honors $PORT (Render and friends inject it; default 8001 keeps the local
+# compose setup working unchanged).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:8001/health || exit 1
+    CMD curl -fsS http://127.0.0.1:${PORT:-8001}/health || exit 1
 
-CMD ["uvicorn", "app.main:app", \
-     "--host", "0.0.0.0", "--port", "8001", \
-     "--proxy-headers", "--forwarded-allow-ips", "*", \
-     "--no-server-header"]
+CMD ["sh", "-c", "exec uvicorn app.main:app \
+      --host 0.0.0.0 --port ${PORT:-8001} \
+      --proxy-headers --forwarded-allow-ips '*' \
+      --no-server-header"]
