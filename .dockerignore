@@ -1,0 +1,19 @@
+# Never let a local .env (with a real ANTHROPIC_API_KEY) reach an image layer.
+.env
+.env.*
+!.env.example
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+.git/
+.gitignore
+tests/
+README.md
+Dockerfile
+.dockerignore
+.vscode/
+.idea/
+Thumbs.db
