@@ -1,0 +1,60 @@
+name: CI
+
+# Coach repo: coach tests and coach Docker build. Secrets never enter this
+# workflow — it has no deploy job.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch cancels the older run. On a busy repo this
+# saves more CI minutes than it costs in confusion.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  coach:
+    name: Coach tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      # Mock mode swaps the Anthropic client for a fake, so this needs no
+      # API key and makes no network calls. It also relaxes the coach's token
+      # requirement and disables its rate limit, which is what lets the
+      # suite run offline.
+      - name: Run tests
+        env:
+          TALYN_MOCK: "1"
+        run: python -m pytest -q
+
+  docker:
+    name: Coach Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Proves the Dockerfile still builds. Pushing is a deploy concern.
+      - name: Build coach
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: false
+          tags: talyn-ai-coach:ci
