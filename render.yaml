@@ -1,5 +1,3 @@
-name: Render
-
 # Render Blueprint for the Talyn AI coach.
 #
 # Dashboard > New > Blueprint > point at THIS repo (Talyn-AI-.git). The coach
