@@ -33,9 +33,10 @@ services:
       - key: TALYN_REQUIRE_TOKEN
         value: ""
       # Browsers allowed to call the coach. Every coach call bills a real API,
-      # so this must be your own origin, not "*".
+      # so this must be your own origin, not "*". localhost is kept so the UI
+      # can also be run locally against the deployed coach.
       - key: CORS_ORIGINS
-        value: http://localhost:3000
+        value: https://talyn-frontend.vercel.app,http://localhost:3000
       # Per-IP budget. 30/min is generous for one learner and low enough that
       # a loop cannot drain the account.
       - key: COACH_RATE_LIMIT_PER_MINUTE
